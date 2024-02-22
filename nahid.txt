@@ -1,0 +1,497 @@
+SELECT `emp_cont_view`.`emp_id`, `emp_cont_view`.`fullname`, `emp_cont_view`.`position` , `branch`.`branch` FROM `emp_cont_view` WHERE `emp_cont_view`.`position_id` IN (42,47) OR `emp_cont_view`.`associate` =1 AND `emp_cont_view`.`park`=0 INNER JOIN `branch` ON `branch`.`id`=`emp_cont_view`.`bid`;
+
+
+SELECT `emp_cont_view`.`emp_id`, `emp_cont_view`.`fullname`, `emp_cont_view`.`position` , `branch`.`branch` FROM `emp_cont_view` WHERE `emp_cont_view`.`position_id` IN (42,47) OR `emp_cont_view`.`associate` =1 AND `emp_cont_view`.`park`=0 LEFT JOIN `branch` ON `branch`.`id`=`emp_cont_view`.`bid`;
+
+
+SELECT `emp_cont_view`.`emp_id`, `emp_cont_view`.`fullname`, `emp_cont_view`.`position` , `branch`.`branch` FROM `emp_cont_view`
+LEFT JOIN `branch`
+ON `branch`.`id`=`emp_cont_view`.`bid`
+WHERE `emp_cont_view`.`position_id` IN (42,47) OR `emp_cont_view`.`associate` =1 AND `emp_cont_view`.`park`=0
+GROUP BY `emp_cont_view`.`emp_id`
+
+
+SELECT `emp_cont_view`.`emp_id`, `emp_cont_view`.`fullname`, `emp_cont_view`.`position` , `branch`.`branch` FROM `emp_cont_view` LEFT JOIN `branch` ON `branch`.`id`=`emp_cont_view`.`bid` WHERE `emp_cont_view`.`position_id` IN (42,47) OR `emp_cont_view`.`associate` =1 AND `emp_cont_view`.`park`=0 GROUP BY `emp_cont_view`.`emp_id`
+
+
+SELECT `emp_cont_view`.`emp_id`, `emp_cont_view`.`fullname`, `emp_cont_view`.`position` , GROUP_CONCAT (`branch`.`branch`) FROM `emp_cont_view` LEFT JOIN `branch` ON `branch`.`id`=`emp_cont_view`.`bid` WHERE `emp_cont_view`.`position_id` IN (18,19) AND `emp_cont_view`.`bid` !=86 AND `emp_cont_view`.`park`=0 GROUP BY `emp_cont_view`.`emp_id`
+
+
+SELECT `venue_id`, COUNT(`contact_id`) FROM `invoice_invoiceitem_view` WHERE `end_date`>=CURRENT_DATE() AND `park`= 0 AND `item_park`=0 GROUP BY  `venue_id` 
+
+
+SELECT `invoice_invoiceitem_view`.`venue_id`,`venue`.`venue`, COUNT(`invoice_invoiceitem_view`.`contact_id`) AS Total_count FROM `invoice_invoiceitem_view` 
+LEFT JOIN `venue`
+ON `venue`.`id`=  `invoice_invoiceitem_view`.`venue_id`
+WHERE `invoice_invoiceitem_view`.`end_date`>=CURRENT_DATE() AND `invoice_invoiceitem_view`.`park`= 0 AND `invoice_invoiceitem_view`.`item_park`=0 GROUP BY  `invoice_invoiceitem_view`.`venue_id`
+
+
+
+SELECT
+    `dfr`.`id` AS `id`,
+    `c`.`id` AS `contact_id`,
+    `i`.`id` AS `inquiry_id`,
+    `i`.`converted` AS `converted`,
+    `f`.`id` AS `followup_id`,
+    `dfr`.`date` AS `date`,
+    `dfr`.`demo_id` AS `demo_id`,
+    `dfr`.`demo_attended` AS `demo_attended`,
+    `dfr`.`name` AS `name`,
+    `dfr`.`dob` AS `dob`,
+   CONCAT
+   (
+       FLOOR((TIMESTAMPDIFF(MONTH,`dfr`.`dob`,curdate()) / 12)),' ', 'years', ' ', 
+             MOD(TIMESTAMPDIFF(MONTH,`dfr`.`dob`,curdate()),12),' ', 'months' 
+   ) as age,
+    `dfr`.`country_code` AS `country_code`,
+    `dfr`.`mobile` AS `mobile`,
+    `dfr`.`email` AS `email`,
+    `dfr`.`pincode` AS `pincode`,
+    `dfr`.`bid` AS `bid`,
+    `dfr`.`heard_string` AS `heard_string`,
+    `dfr`.`park` AS `park`,
+    `d`.`name` AS `demo_name`,
+    CONCAT(
+        'https://braindevelopment.tickleright.com/pf/demo_form.php?access=',
+        `d`.`id`,
+        '_',
+        `d`.`hashed_otp`
+    ) AS `demo_link`,
+    `b`.`branch` AS `branch`,
+    `v`.`venue` AS `venue`,
+    `v`.`address` AS `venue_address`,
+    DATE_FORMAT(
+        CONCAT(`d`.`start_date`, ' ', `d`.`start_time`),
+        '%a, %D %M-%l:%i %p'
+    ) AS `demo_date_string`,
+    (
+        CASE WHEN(`dfr`.`venue` = 1) THEN `v`.`venue` ELSE ''
+    END
+) AS `venue_flag`,
+`dfr`.`created_at` AS `created_at`,
+`dfr`.`created_by` AS `created_by`,
+`dfr`.`modified_at` AS `modified_at`,
+`dfr`.`modified_by` AS `modified_by`
+FROM
+    (
+        (
+            (
+                (
+                    (
+                        (
+                            `pf_TickleRight_9210`.`demo_form_response` `dfr`
+                        JOIN `pf_TickleRight_9210`.`demo` `d`
+                        ON
+                            ((`dfr`.`demo_id` = `d`.`id`))
+                        )
+                    JOIN `pf_TickleRight_9210`.`branch` `b`
+                    ON
+                        ((`b`.`id` = `d`.`bid`))
+                    )
+                JOIN `pf_TickleRight_9210`.`venue` `v`
+                ON
+                    ((`d`.`venue_id` = `v`.`id`))
+                )
+            LEFT JOIN `pf_TickleRight_9210`.`contact` `c`
+            ON
+                ((`c`.`mobile` = `dfr`.`mobile`))
+            )
+        LEFT JOIN `pf_TickleRight_9210`.`inquiry` `i`
+        ON
+            ((`c`.`id` = `i`.`contact_id`))
+        )
+    LEFT JOIN(
+        SELECT
+            `f`.`id` AS `id`,
+            `f`.`master_id` AS `master_id`
+        FROM
+            (
+                `pf_TickleRight_9210`.`followup` `f`
+            LEFT JOIN `pf_TickleRight_9210`.`followup` `f2`
+            ON
+                ((`f`.`parent_id` = `f2`.`id`))
+            )
+        WHERE
+            (
+                `f`.`id` IN(
+                SELECT
+                    MAX(
+                        `pf_TickleRight_9210`.`followup`.`id`
+                    )
+                FROM
+                    `pf_TickleRight_9210`.`followup`
+                WHERE
+                    (
+                        `pf_TickleRight_9210`.`followup`.`master` = '0'
+                    )
+                GROUP BY
+                    `pf_TickleRight_9210`.`followup`.`contact_id`,
+                    `pf_TickleRight_9210`.`followup`.`master`,
+                    `pf_TickleRight_9210`.`followup`.`master_id`
+            ) AND(`f`.`master` = '0')
+            )
+        GROUP BY
+            `f`.`id`
+    ) `f`
+ON
+    ((`f`.`master_id` = `i`.`id`))
+    )
+ORDER BY
+    `dfr`.`id`
+DESC
+
+
+
+
+
+
+
+
+SELECT
+    `dfr`.`id` AS `id`,
+    `c`.`id` AS `contact_id`,
+    `i`.`id` AS `inquiry_id`,
+    `i`.`converted` AS `converted`,
+    `f`.`id` AS `followup_id`,
+    `dfr`.`date` AS `date`,
+    `dfr`.`demo_id` AS `demo_id`,
+    `dfr`.`demo_attended` AS `demo_attended`,
+    `dfr`.`name` AS `name`,
+    `dfr`.`dob` AS `dob`,
+    `dfr`.`country_code` AS `country_code`,
+    `dfr`.`mobile` AS `mobile`,
+    `dfr`.`email` AS `email`,
+    `dfr`.`pincode` AS `pincode`,
+    `dfr`.`bid` AS `bid`,
+    `dfr`.`heard_string` AS `heard_string`,
+    `dfr`.`park` AS `park`,
+    `d`.`name` AS `demo_name`,
+    CONCAT(
+        'https://braindevelopment.tickleright.com/pf/demo_form.php?access=',
+        `d`.`id`,
+        '_',
+        `d`.`hashed_otp`
+    ) AS `demo_link`,
+    `b`.`branch` AS `branch`,
+    `v`.`venue` AS `venue`,
+    `v`.`address` AS `venue_address`,
+    DATE_FORMAT(
+        CONCAT(`d`.`start_date`, ' ', `d`.`start_time`),
+        '%a, %D %M-%l:%i %p'
+    ) AS `demo_date_string`,
+    (
+        CASE WHEN(`dfr`.`venue` = 1) THEN `v`.`venue` ELSE ''
+    END
+) AS `venue_flag`,
+`dfr`.`created_at` AS `created_at`,
+`dfr`.`created_by` AS `created_by`,
+`dfr`.`modified_at` AS `modified_at`,
+`dfr`.`modified_by` AS `modified_by`
+FROM
+    (
+        (
+            (
+                (
+                    (
+                        (
+                            `pf_TickleRight_9210`.`demo_form_response` `dfr`
+                        JOIN `pf_TickleRight_9210`.`demo` `d`
+                        ON
+                            ((`dfr`.`demo_id` = `d`.`id`))
+                        )
+                    JOIN `pf_TickleRight_9210`.`branch` `b`
+                    ON
+                        ((`b`.`id` = `d`.`bid`))
+                    )
+                JOIN `pf_TickleRight_9210`.`venue` `v`
+                ON
+                    ((`d`.`venue_id` = `v`.`id`))
+                )
+            LEFT JOIN `pf_TickleRight_9210`.`contact` `c`
+            ON
+                ((`c`.`mobile` = `dfr`.`mobile`))
+            )
+        LEFT JOIN `pf_TickleRight_9210`.`inquiry` `i`
+        ON
+            ((`c`.`id` = `i`.`contact_id`))
+        )
+    LEFT JOIN(
+        SELECT
+            `f`.`id` AS `id`,
+            `f`.`master_id` AS `master_id`
+        FROM
+            (
+                `pf_TickleRight_9210`.`followup` `f`
+            LEFT JOIN `pf_TickleRight_9210`.`followup` `f2`
+            ON
+                ((`f`.`parent_id` = `f2`.`id`))
+            )
+        WHERE
+            (
+                `f`.`id` IN(
+                SELECT
+                    MAX(
+                        `pf_TickleRight_9210`.`followup`.`id`
+                    )
+                FROM
+                    `pf_TickleRight_9210`.`followup`
+                WHERE
+                    (
+                        `pf_TickleRight_9210`.`followup`.`master` = '0'
+                    )
+                GROUP BY
+                    `pf_TickleRight_9210`.`followup`.`contact_id`,
+                    `pf_TickleRight_9210`.`followup`.`master`,
+                    `pf_TickleRight_9210`.`followup`.`master_id`
+            ) AND(`f`.`master` = '0')
+            )
+        GROUP BY
+            `f`.`id`
+    ) `f`
+ON
+    ((`f`.`master_id` = `i`.`id`))
+    )
+ORDER BY
+    `dfr`.`id`
+DESC
+    
+
+
+
+
+
+
+
+
+SELECT
+    `e`.`id` AS `id`,
+    `e`.`id` AS `emp_id`,
+    `e`.`contact_id` AS `contact_id`,
+    `e`.`type` AS `type`,
+    `e`.`emergency_id` AS `emergency_id`,
+    `e`.`ecode` AS `ecode`,
+    `e`.`department_id` AS `department_id`,
+    `e`.`position_id` AS `position_id`,
+     `e`.`interviewer` AS `interviewer`,
+    `e`.`grade` AS `grade`,
+    `e`.`auto_assign_inq` AS `auto_assign_inq`,
+    `e`.`qualifier` AS `qualifier`,
+    `ep`.`position` AS `position`,
+    CASE WHEN `ep`.`position` = 'Senior-Trainer' OR `ep`.`position` = 'Trainer' THEN 'Training Partner' WHEN `ep`.`position` = 'Franchisee' THEN 'Franchisee Partner' ELSE `ep`.`position`
+END AS `position_subheader`,
+`ep`.`level` AS `level`,
+`e`.`doj` AS `doj`,
+`e`.`notice_start_date` AS `notice_start_date`,
+`e`.`doe` AS `doe`,
+`e`.`on_notice` AS `on_notice`,
+`e`.`status` AS `status`,
+`e`.`salary` AS `salary`,
+`e`.`salary_type` AS `salary_type`,
+`e`.`tds_type` AS `tds_type`,
+`e`.`tds_percent` AS `tds_percent`,
+`e`.`rate_multiplier` AS `rate_multiplier`,
+`e`.`allowance` AS `allowance`,
+`e`.`calculate_salary` AS `calculate_salary`,
+`e`.`associate` AS `associate`,
+`e`.`incentive_new` AS `incentive_new`,
+`e`.`incentive_renew` AS `incentive_renew`,
+`e`.`rec_dir` AS `rec_dir`,
+`e`.`p_incentive_c` AS `p_incentive_c`,
+`e`.`p_incentive_sc` AS `p_incentive_sc`,
+`e`.`assignment_check` AS `assignment_check`,
+`e`.`assignment_no` AS `assignment_no`,
+CASE WHEN `e`.`salary` >= 10000 THEN 200 ELSE 0
+END AS `tds`,
+CASE WHEN `e`.`salary` >= 10000 THEN 'P.T.' ELSE ''
+END AS `tds_comment`,
+`e`.`user_account` AS `user_account`,
+`e`.`workshift_id` AS `workshift_id`,
+`e`.`workshift_in_time` AS `workshift_in_time`,
+`e`.`workshift_out_time` AS `workshift_out_time`,
+`e`.`week_off_code` AS `week_off_code`,
+`e`.`target_id` AS `target_id`,
+`e`.`expense_balance` AS `expense_balance`,
+`e`.`park` AS `park`,
+`c`.`id` AS `cont_id`,
+`c`.`fname` AS `fname`,
+`c`.`lname` AS `lname`,
+`c`.`mname` AS `mname`,
+CONCAT(`c`.`fname`, ' ', `c`.`lname`, ' ', `c`.`mname`) AS `fullname`,
+`c`.`nick_name` AS `nick_name`,
+`c`.`country_code` AS `country_code`,
+`c`.`mobile` AS `mobile`,
+`c`.`document_type_id` AS `document_type_id`,
+`c`.`document_number` AS `document_number`,
+`c`.`document_type_id_2` AS `document_type_id_2`,
+`c`.`document_number_2` AS `document_number_2`,
+`c`.`document_image_2` AS `document_image_2`,
+`c`.`country_code_2` AS `country_code_2`,
+`c`.`mobile2` AS `mobile2`,
+`c`.`phone_no` AS `phone_no`,
+`c`.`email` AS `email`,
+`c`.`gender` AS `gender`,
+`c`.`image` AS `image`,
+`c`.`quick_comment` AS `quick_comment`,
+`c`.`dob` AS `dob`,
+DATE_FORMAT(`c`.`dob`, '%d %b %y') AS `dob_string`,
+DATE_FORMAT(`e`.`doj`, '%d %b %y') AS `doj_string`,
+`c`.`parent_id` AS `parent_id`,
+`c`.`relation` AS `relation`,
+`c`.`address` AS `address`,
+`c`.`document_image` AS `document_image`,
+`c`.`pincode` AS `pincode`,
+`c`.`state` AS `state`,
+`c`.`city` AS `city`,
+`c`.`park` AS `cont_park`,
+`cg`.`contact_group` AS `contact_group`,
+`eb`.`bid` AS `bid`,
+`b`.`branch` AS `branch`,
+`b`.`type` AS `branch_type`,
+`eb`.`zoom_user_id` AS `zoom_user_id`,
+`c`.`occupation` AS `occupation`,
+`c`.`gstin` AS `gstin`,
+`c`.`company` AS `company`
+FROM
+    (
+        (
+            (
+                (
+                    (
+                        `pf_tickleright_9210`.`contact` `c`
+                    JOIN `pf_tickleright_9210`.`employee` `e`
+                    )
+                JOIN `pf_tickleright_9210`.`contact_group` `cg`
+                )
+            JOIN `pf_central`.`employee_position` `ep`
+            )
+        JOIN `pf_tickleright_9210`.`employee_bid` `eb`
+        )
+    JOIN `pf_tickleright_9210`.`branch` `b`
+    ON
+        (`eb`.`bid` = `b`.`id`)
+    )
+WHERE
+    `cg`.`id` = `c`.`contact_group_id` AND `c`.`id` = `e`.`contact_id` AND `e`.`position_id` = `ep`.`id` AND `e`.`id` = `eb`.`employee_id`
+ORDER BY
+    `e`.`id`
+DESC;
+
+
+
+SELECT
+    `e`.`id` AS `id`,
+    `e`.`id` AS `emp_id`,
+    `e`.`contact_id` AS `contact_id`,
+    `e`.`type` AS `type`,
+    `e`.`emergency_id` AS `emergency_id`,
+    `e`.`ecode` AS `ecode`,
+    `e`.`department_id` AS `department_id`,
+    `e`.`position_id` AS `position_id`,
+    `e`.`grade` AS `grade`,
+    `e`.`auto_assign_inq` AS `auto_assign_inq`,
+    `e`.`qualifier` AS `qualifier`,
+    `ep`.`position` AS `position`,
+    CASE WHEN `ep`.`position` = 'Senior-Trainer' OR `ep`.`position` = 'Trainer' THEN 'Training Partner' WHEN `ep`.`position` = 'Franchisee' THEN 'Franchisee Partner' ELSE `ep`.`position`
+END AS `position_subheader`,
+`ep`.`level` AS `level`,
+`e`.`doj` AS `doj`,
+`e`.`notice_start_date` AS `notice_start_date`,
+`e`.`doe` AS `doe`,
+`e`.`on_notice` AS `on_notice`,
+`e`.`status` AS `status`,
+`e`.`salary` AS `salary`,
+`e`.`salary_type` AS `salary_type`,
+`e`.`tds_type` AS `tds_type`,
+`e`.`tds_percent` AS `tds_percent`,
+`e`.`rate_multiplier` AS `rate_multiplier`,
+`e`.`allowance` AS `allowance`,
+`e`.`calculate_salary` AS `calculate_salary`,
+`e`.`associate` AS `associate`,
+`e`.`incentive_new` AS `incentive_new`,
+`e`.`incentive_renew` AS `incentive_renew`,
+`e`.`rec_dir` AS `rec_dir`,
+`e`.`p_incentive_c` AS `p_incentive_c`,
+`e`.`p_incentive_sc` AS `p_incentive_sc`,
+`e`.`assignment_check` AS `assignment_check`,
+`e`.`assignment_no` AS `assignment_no`,
+CASE WHEN `e`.`salary` >= 10000 THEN 200 ELSE 0
+END AS `tds`,
+CASE WHEN `e`.`salary` >= 10000 THEN 'P.T.' ELSE ''
+END AS `tds_comment`,
+`e`.`user_account` AS `user_account`,
+`e`.`workshift_id` AS `workshift_id`,
+`e`.`workshift_in_time` AS `workshift_in_time`,
+`e`.`workshift_out_time` AS `workshift_out_time`,
+`e`.`week_off_code` AS `week_off_code`,
+`e`.`target_id` AS `target_id`,
+`e`.`expense_balance` AS `expense_balance`,
+`e`.`park` AS `park`,
+`c`.`id` AS `cont_id`,
+`c`.`fname` AS `fname`,
+`c`.`lname` AS `lname`,
+`c`.`mname` AS `mname`,
+CONCAT(`c`.`fname`, ' ', `c`.`lname`, ' ', `c`.`mname`) AS `fullname`,
+`c`.`nick_name` AS `nick_name`,
+`c`.`country_code` AS `country_code`,
+`c`.`mobile` AS `mobile`,
+`c`.`document_type_id` AS `document_type_id`,
+`c`.`document_number` AS `document_number`,
+`c`.`document_type_id_2` AS `document_type_id_2`,
+`c`.`document_number_2` AS `document_number_2`,
+`c`.`document_image_2` AS `document_image_2`,
+`c`.`country_code_2` AS `country_code_2`,
+`c`.`mobile2` AS `mobile2`,
+`c`.`phone_no` AS `phone_no`,
+`c`.`email` AS `email`,
+`c`.`gender` AS `gender`,
+`c`.`image` AS `image`,
+`c`.`quick_comment` AS `quick_comment`,
+`c`.`dob` AS `dob`,
+DATE_FORMAT(`c`.`dob`, '%d %b %y') AS `dob_string`,
+DATE_FORMAT(`e`.`doj`, '%d %b %y') AS `doj_string`,
+`c`.`parent_id` AS `parent_id`,
+`c`.`relation` AS `relation`,
+`c`.`address` AS `address`,
+`c`.`document_image` AS `document_image`,
+`c`.`pincode` AS `pincode`,
+`c`.`state` AS `state`,
+`c`.`city` AS `city`,
+`c`.`park` AS `cont_park`,
+`cg`.`contact_group` AS `contact_group`,
+`eb`.`bid` AS `bid`,
+`b`.`branch` AS `branch`,
+`b`.`type` AS `branch_type`,
+`eb`.`zoom_user_id` AS `zoom_user_id`,
+`c`.`occupation` AS `occupation`,
+`c`.`gstin` AS `gstin`,
+`c`.`company` AS `company`
+FROM
+    (
+        (
+            (
+                (
+                    (
+                        `pf_tickleright_9210`.`contact` `c`
+                    JOIN `pf_tickleright_9210`.`employee` `e`
+                    )
+                JOIN `pf_tickleright_9210`.`contact_group` `cg`
+                )
+            JOIN `pf_central`.`employee_position` `ep`
+            )
+        JOIN `pf_tickleright_9210`.`employee_bid` `eb`
+        )
+    JOIN `pf_tickleright_9210`.`branch` `b`
+    ON
+        (`eb`.`bid` = `b`.`id`)
+    )
+WHERE
+    `cg`.`id` = `c`.`contact_group_id` AND `c`.`id` = `e`.`contact_id` AND `e`.`position_id` = `ep`.`id` AND `e`.`id` = `eb`.`employee_id`
+ORDER BY
+    `e`.`id`
+DESC
+    
+
+
+pf_TickleRight_9210
+
+pf_central

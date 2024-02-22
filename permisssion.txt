@@ -1,0 +1,940 @@
+<?php
+	//error_reporting(0);
+	require_once '../classes/dbconnection.class.php';
+	require_once '../classes/querybuilder.class.php';
+	require_once '../classes/session.class.php';
+	require_once "../inc/defaults.php";
+	require_once "../inc/customMailBody/mpinSetEmail.php";
+	require_once '../classes/mailer.class.php';
+	require_once '../classes/smsgateway.class.php';
+
+	class user extends dbconnection{
+		private $response = array();
+
+		
+		public function select_user($request){
+			$session = new session;
+			$dbname = $session->check_session($request);
+			
+			$conn = $this->connect("pf_central");
+
+			$client = $conn->query("SELECT id FROM client_db WHERE `db_name` = '{$dbname}' ");
+
+			$client_row = $client->fetch_assoc();
+
+			if(array_key_exists('contact_id', $request) && !empty($request['contact_id']))
+				$result = $conn->query("SELECT id,concat(fname,' ',lname) AS fullname FROM user WHERE client_id = '{$client_row['id']}' AND contact_id = '{$request['contact_id']}'");
+			else
+				$result = $conn->query("SELECT id,concat(fname,' ',lname) AS fullname FROM user WHERE client_id = '{$client_row['id']}'");
+
+
+			if($result->num_rows){
+				$response['data'] =array();
+				while ($row = $result->fetch_assoc()){
+					array_push($response['data'],$row);
+				}
+				$response['error'] = 0;
+				$response['error_msg'] = '';
+				$response['message'] = '';
+			}
+			else{
+				$response['data'] = array();
+				$response['error'] = 1;
+				$response['error_msg'] = 'record not found';
+				$response['message'] = 'Not found';
+			}
+
+			$conn->close();
+			return json_encode($response);
+		}
+
+
+		public function select_select_auth($request){
+			$session = new session;
+			$dbname = $session->check_session($request);
+			
+			$conn = $this->connect("pf_central");
+
+			$client = $conn->query("SELECT id FROM client_db WHERE `db_name` = '{$dbname}' ");
+
+			$client_row = $client->fetch_assoc();
+
+			if(array_key_exists('contact_id', $request) && !empty($request['contact_id']))
+				$result = $conn->query("SELECT id,concat(fname,' ',lname) AS fullname FROM user WHERE client_id = '{$client_row['id']}' AND contact_id = '{$request['contact_id']}'");
+			else
+				$result = $conn->query("SELECT id,concat(fname,' ',lname) AS fullname FROM user WHERE client_id = '{$client_row['id']}'");
+
+
+			if($result->num_rows){
+				$response['data'] =array();
+				while ($row = $result->fetch_assoc()){
+					array_push($response['data'],$row);
+				}
+				$response['error'] = 0;
+				$response['error_msg'] = '';
+				$response['message'] = '';
+			}
+			else{
+				$response['data'] = array();
+				$response['error'] = 1;
+				$response['error_msg'] = 'record not found';
+				$response['message'] = 'Not found';
+			}
+
+			$conn->close();
+			return json_encode($response);
+		}
+
+
+		public function select_select_user($request) {
+			$session = new session;
+			$dbname = $session->check_session($request);
+
+			if(empty($dbname))
+				return json_encode(['error'=>2,'error_msg'=>'could not find db','message'=>'check session id or token']);
+			else{
+				// if($session->access(!empty(get_uid())?get_uid():$request['uid'],$this->module('Contact'),1)){
+					$conn = $this->connect("pf_central");
+					
+					$build = new querybuilder;
+					$query = "";
+
+					if(array_key_exists('col', $request) && !empty($request['col']))
+						$query = $build->select($request['col']);
+
+					$query.="FROM user";
+
+					if(array_key_exists('filter', $request) && !empty($request['filter']))
+						$query = $build->where($request['filter'],$query);
+
+					if(array_key_exists('orfilter', $request) && !empty($request['orfilter']))
+						$query = $build->orWhere($request['orfilter'],$query);
+
+					if(array_key_exists('order', $request) && !empty($request['order']))
+						$query = $build->order($request['order'],$query);
+
+					$query.= !empty($request['groupby']) ? " GROUP BY ".$request['groupby'] : "" ;
+
+					if(array_key_exists('limit', $request) && !empty($request['limit']))
+						$query .= " LIMIT {$request['limit']}";
+
+					if(array_key_exists('offset', $request) && !empty($request['offset']))
+						$query .= " OFFSET {$request['offset']}";
+
+					$result = $conn->query($query);
+
+					// var_dump($query);
+
+					if($result->num_rows){
+						$response['data'] =array();
+						while ($row = $result->fetch_assoc()){
+							json_encode($row);
+							array_push($response['data'],$row);
+						}
+						$response['error'] = 0;
+						$response['error_msg'] = '';
+						$response['message'] = '';
+					}
+					else{
+						$response['data'] = array();
+						$response['error'] = 1;
+						$response['error_msg'] = 'record not found';
+						$response['message'] = 'Not found';
+					}
+
+					$conn->close();
+				// }
+				// else
+				// 	$response = ['data'=>[],'error'=>3,'error_msg'=>'access denied','message'=>'You dont have enough privileges'];
+				return json_encode($response);
+			}
+		}
+
+		public function update_module_permission($request) {
+			$response = [];
+			# code...
+			$conn = $this->connect('pf_central');
+			$clientData = $conn->query("SELECT `id`, `db_name` FROM `client_db` WHERE `id` = '{$request['client_id']}'")->fetch_assoc();
+				if ($clientData['db_name']) {
+					$conn2 = $this->connect($clientData['db_name']);
+				}
+			$client_module_sql = $conn->query("SELECT `id` FROM `client_module` WHERE `client_id` = '{$request['client_id']}' AND `active` = 1 AND  module_id = {$request['u']['module_id']}");	
+
+			$cm_id = $client_module_sql->fetch_assoc();
+			// checking user bid exist 
+			$bid_check = $conn->query("SELECT `id`,`user_id`,`bid` FROM `user_bid` WHERE `bid` = '{$request['bids']}' AND  `user_id` = {$request['user_id']}"); 
+			
+			if ($bid_check->num_rows) {
+				$response['internal_message'] .= "USER BID ALREADY EXIST";
+			}else{
+				$res = $conn->query("INSERT INTO `user_bid` (`user_id`, `bid`) VALUES ('{$request['user_id']}','{$request['bids']}')");
+				if ($res) {
+					$response['internal_message'] .= "USER BID Inserted";
+				}
+			}
+			// checking user bid exist end 
+
+			// checking employee bid exist
+			$user = $conn->query("SELECT `id`, `client_id`, `contact_id` FROM `user` WHERE `id` = '{$request['user_id']}'")->fetch_assoc();
+			$empDetails = $conn2->query("SELECT `id` FROM `employee` WHERE `contact_id` = '{$user['contact_id']}'")->fetch_assoc();
+
+			$employee_check = $conn2->query("SELECT `id`,`employee_id`,`bid` FROM `employee_bid` WHERE `bid` = '{$request['bids']}' AND  `employee_id` = '{$empDetails['id']}'");
+
+			if ($employee_check->num_rows) {
+				$response['internal_message'] .= "USER employee ALREADY EXIST";
+			}else{
+				$res = $conn2->query("INSERT INTO `employee_bid` (`employee_id`, `bid`) VALUES ('{$empDetails['id']}','{$request['bids']}')");
+				if ($res) {
+					$response['internal_message'] .= "Employee BID Inserted";
+				}
+			} 
+			// checking employee bid exist end 
+			
+			$checkResult = $conn->query("SELECT `id` FROM `user_permission` WHERE `user_id` = '{$request['user_id']}' AND `cm_id` = '{$cm_id['id']}' AND  bid = '{$request['bids']}'");
+
+			if($checkResult->num_rows > 1){
+				$deleteResult = $conn->query("DELETE FROM `user_permission` WHERE `user_id` = '{$request['user_id']}' AND `cm_id` = '{$cm_id['id']}' AND  bid = '{$request['bids']}'");
+			}
+			$checkResult = $conn->query("SELECT `id` FROM `user_permission` WHERE `user_id` = '{$request['user_id']}' AND `cm_id` = '{$cm_id['id']}' AND  bid = '{$request['bids']}'");
+			
+			if($checkResult->num_rows){
+				$update = $conn->query("UPDATE `user_permission` SET `permission` = '{$request['u']['permission']}' WHERE `user_id` = '{$request['user_id']}' AND `cm_id` = '{$cm_id['id']}' AND `bid` =  '{$request['bids']}'");
+				// echo "UPDATE `user_permission` SET `permission` = '{$request['u']['permission']}' WHERE `user_id` = '{$request['user_id']}' AND `cm_id` = '{$cm_id['id']}' AND `bid` =  '{$request['bids']}'";
+				// var_dump($update);
+				if(!$update){
+					sleep(3);
+					$update = $conn->query("UPDATE `user_permission` SET `permission` = '{$request['u']['permission']}' WHERE `user_id` = '{$request['user_id']}' AND `cm_id` = '{$cm_id['id']}' AND `bid` =  '{$request['bids']}'");
+				}
+				$response['error'] = 2;
+				$response['error_msg'] = 'Permission already exist';
+				$response['message'] = 'We have updated your permission';
+
+			}
+			else{
+				$checkResult = $conn->query("INSERT INTO `user_permission` (`user_id`, `cm_id`, `permission`, `bid` ) VALUE ('{$request['user_id']}','{$cm_id['id']}','{$request['u']['permission']}','{$request['bids']}')");
+			}
+
+			if($checkResult) {
+				$response['error'] = 0;
+				$response['error_msg'] = '';
+				$response['message'] = 'Permission Inserted Successfully';
+			}
+			else {
+				$response['error'] = 1;
+				$response['error_msg'] = 'Something went wrong';
+				$response['message'] = 'Please try again';
+			}
+
+			$conn->close();
+
+			return json_encode($response);
+
+		}
+
+		public function update_user_permission($request){
+			if (isset($request['bids']) && !empty($request['bids']) && sizeof($request['bids']) > 0) {
+				return $this->update_user_permission_rewritten($request);
+			}
+			if(!empty($request)){
+				$conn = $this->connect('pf_central');
+				$updated = 0;
+				$client_module_ids = [];
+				$module_ids = "";
+				$existingModulesNotify = [];
+				$notify_user_sql = $conn->query("SELECT `module_id` FROM `notify_user` WHERE `user_id` = '{$request['user_id']}'");
+				while ($notify_user = $notify_user_sql->fetch_assoc()) {
+					array_push($existingModulesNotify, $notify_user['module_id']);
+				}
+				foreach ($request['u'] as $key => $obj) {
+					$client_module_ids = [];
+					$client_module = $conn->query("SELECT id FROM client_module WHERE module_id = '{$obj['module_id']}' AND client_id = '{$request['client_id']}'")->fetch_assoc();
+					array_push($client_module_ids,$client_module['id']);
+					$sub_modules = $conn->query("SELECT `cm`.`id` FROM `client_module` as `cm` INNER JOIN `module` AS `m` ON `cm`.`module_id` = `m`.`id` WHERE `m`.`parent_id` = '{$obj['module_id']}' AND `cm`.`client_id` = '{$request['client_id']}'");
+					if($sub_modules->num_rows){
+						while($sub_module = $sub_modules->fetch_assoc())
+							array_push($client_module_ids,$sub_module['id']);
+					}
+					if($conn->query("UPDATE user_permission SET permission = '{$obj['permission']}' WHERE user_id = '{$request['user_id']}' AND cm_id IN (".implode(',',$client_module_ids).") AND bid = '{$request['bid']}' AND bid NOT IN('86')"))
+						$updated ++;
+
+					//check and insert / update in notify user iff permission >= Write
+					if (!in_array($obj['module_id'], $existingModulesNotify) && $obj['permission'] >= 2) { //Insert
+						$conn->query("INSERT INTO `notify_user`(`module_id`, `user_id`) VALUES ('{$obj['module_id']}','{$request['user_id']}')");
+					}
+					if ( $obj['permission'] >= 2) 
+						$module_ids .= (strlen($module_ids) > 0 ? "," : "") . "'{$obj['module_id']}'";
+				}
+
+				if (strlen($module_ids) > 0) {
+					$conn->query("DELETE FROM `notify_user` WHERE `user_id` = '{$request['user_id']}' AND `module_id` NOT IN ({$module_ids})");
+				}
+
+				if($updated == count($request['u']))
+					$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>'User permissions updated'];
+				else
+					$response = ['data'=>[],'error'=>1,'error_msg'=>'something went wrong','message'=>'please try after some time'];
+				$conn->close();
+			}
+			else
+				$response = ['data'=>[],'error'=>1,'error_msg'=>'insufficient data','message'=>''];
+
+		
+
+			return json_encode($response);
+		}
+
+		public function update_user_permission_rewritten($request) {
+			if(!empty($request)){
+				$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>'Inserted' , 'internal_message' => ''];
+				$conn = $this->connect('pf_central');
+
+				//Get user details (Contact_id)
+				$user = $conn->query("SELECT `id`, `client_id`, `contact_id` FROM `user` WHERE `id` = '{$request['user_id']}'")->fetch_assoc();
+
+				//Insert child modules
+				$module_sql = $conn->query("SELECT `id`, `parent_id` FROM `module` WHERE `parent_id` > 0 AND `park` = 0");
+				while ($module = $module_sql->fetch_assoc()) {
+					for ($i = 0; $i < sizeof($request['u']); $i++) {
+						if ($request['u'][$i]['module_id'] == $module['parent_id']) {
+							array_push($request['u'], ['module_id'=>$module['id'], 'permission'=>$request['u'][$i]['permission']]);
+						}
+					}
+				}
+				
+				//Get client_module
+				$client_module_sql = $conn->query("SELECT `id`, `module_id` FROM `client_module` WHERE `client_id` = '{$request['client_id']}' AND `active` = 1");
+				$client_modules = [];
+				while($client_module = $client_module_sql->fetch_assoc()) {
+					for($i = 0; $i < sizeof($request['u']); $i++) {
+						if ($request['u'][$i]['module_id'] == $client_module['module_id']) {
+							$request['u'][$i]['cm_id'] = $client_module['id'];
+						}
+					}
+				}
+
+				//Delete notify_user
+				$deleteBody = "DELETE FROM `notify_user` WHERE `user_id` = '{$user['id']}'";
+				$res = $conn->query($deleteBody);
+				if ($res) {
+					$response['internal_message'] .= "Notify User Deleted, ";
+				}
+				// Delete user_bid
+				$deleteBody = "DELETE FROM `user_bid` WHERE `user_id` = '{$user['id']}' AND bid NOT IN('86')";
+				$res = $conn->query($deleteBody);
+				if ($res) {
+					$response['internal_message'] .= "User BID Deleted, ";
+				}
+				//Delete user_permission
+				// $deleteBody = "DELETE FROM `user_permission` WHERE `user_id` = '{$user['id']}' AND bid NOT IN('86')";
+				// $res = $conn->query($deleteBody);
+				// if ($res) {
+				// 	$response['internal_message'] .= "User Permission Deleted, ";
+				// }
+
+				//Insert notify_user
+				$insertBodyNotifyUser = "";
+				for ($i = 0; $i < sizeof($request['u']); $i++) {
+					if ($request['u'][$i]['permission'] > 1) {
+						$insertBodyNotifyUser .= (strlen($insertBodyNotifyUser) > 0 ? ", " : "") . "('{$request['u'][$i]['module_id']}','{$user['id']}')";
+					}
+				}
+				if (strlen($insertBodyNotifyUser) > 0) {
+					$insertBodyNotifyUser = "INSERT INTO `notify_user` (`module_id`, `user_id`) VALUES " . $insertBodyNotifyUser;
+					$res = $conn->query($insertBodyNotifyUser);
+					if ($res){
+						$response['internal_message'] .= "Notify User Inserted, ";
+					}
+				}
+				//Insert user_bid
+				$insertBodyUserBid = "";
+				for ($i = 0; $i < sizeof($request['bids']); $i++) {
+					$insertBodyUserBid .= (strlen($insertBodyUserBid) > 0 ? ", ": "") . "('{$user['id']}','{$request['bids'][$i]}')";
+				}
+				if (strlen($insertBodyUserBid) > 0) {
+					$insertBodyUserBid = "INSERT INTO `user_bid` (`user_id`, `bid`) VALUES " . $insertBodyUserBid;
+					$res = $conn->query($insertBodyUserBid);
+					if ($res){
+						$response['internal_message'] .= "User BID Inserted, ";
+					}
+				}
+				//Insert user_permission
+				$insertBodyUserPermission = "";
+				for ($i = 0; $i < sizeof($request['u']); $i++) {
+					$permission = $request['u'][$i];
+					for ($j = 0; $j < sizeof($request['bids']); $j++) {
+						$bid = $request['bids'][$j];
+						// echo $bid;
+						$user_id=$request['user_id'];
+						// echo $user_id;
+						$cm_id=$permission['cm_id'];
+						$permission_value=$permission['permission'];
+						// echo $cm_id;
+						$insertBodyUserPermission .= (strlen($insertBodyUserPermission) > 0 ? ", ": ""). "('{$user['id']}','{$permission['cm_id']}','{$permission['permission']}','{$bid}')";
+						$this->check_permission($user_id, $cm_id, $permission_value, $bid);
+						// check_permission($user_id, $cm_id, $permission, $bid);
+					}
+				}
+				// if (strlen($insertBodyUserPermission) > 0) {
+				// 	$insertBodyUserPermission = "INSERT INTO `user_permission` (`user_id`, `cm_id`, `permission`, `bid`) VALUES " . $insertBodyUserPermission;
+				// 	$res = $conn->query($insertBodyUserPermission);
+				// 	if ($res){
+				// 		$response['internal_message'] .= "User Permission Inserted, ";
+				// 	}
+				// }
+
+				//Select database
+				$clientData = $conn->query("SELECT `id`, `db_name` FROM `client_db` WHERE `id` = '{$request['client_id']}'")->fetch_assoc();
+				if ($clientData['db_name']) {
+					$conn = $this->connect($clientData['db_name']);
+
+					$bids = $request['bids'];
+					// Get employee id
+					$get_emp_id = $conn->query("SELECT `id` FROM `employee` WHERE `contact_id` = '{$user['contact_id']}' ")->fetch_assoc()['id'];
+					// Delete bid rest than having in tables using not in query
+					$res = $conn->query("DELETE FROM `employee_bid` WHERE `employee_id` = '{$get_emp_id}' AND bid NOT IN('".implode("'", $bids)."') AND bid NOT IN('86')");
+					if ($res) {
+						$response['internal_message'] .= "Employee BID Deleted, ";
+					}
+					
+					// Select all bids from table
+					$fetch_bid = $conn->query("SELECT `bid` FROM `employee_bid` WHERE `employee_id` = '{$get_emp_id}' ");
+					
+					// Fetch all data and unset key from bids then not insrted this value again
+					while($single_bid = $fetch_bid->fetch_assoc()){
+						foreach($bids as $key => $bid) {
+							if($bid == $single_bid['bid']){
+								unset($bids[$key]);
+							}
+						}
+					}
+
+					//Insert Employee Bid
+					foreach ($bids as $key => $bid) {
+						$res = $conn->query("INSERT INTO `employee_bid` (`employee_id`, `bid`) VALUES ('{$get_emp_id}','{$bid}')");
+						if ($res) {
+							$response['internal_message'] .= "Employee BID Inserted";
+						}
+					}
+				}
+				$conn->close();
+			}
+			else
+				$response = ['data'=>[],'error'=>1,'error_msg'=>'insufficient data','message'=>''];
+
+		
+
+			return json_encode($response);
+		}
+		function check_permission($user_id, $cm_id, $permission_value, $bid){
+			$conn = $this->connect('pf_central');
+			$response=array();
+			$insertBodyUserPermission="";
+			$selectq= "SELECT * FROM `user_permission` WHERE `user_id`='{$user_id}' AND `cm_id`='{$cm_id}' AND `bid`='{$bid}'";
+			$select = $conn->query($selectq);
+			// echo $select; exit;
+			// print_r($select->fetch_all(MYSQLI_ASSOC));
+			if($select){
+				$qu="UPDATE user_permission SET permission = '{$permission_value}' WHERE  `user_id`='{$user_id}' AND `cm_id`='{$cm_id}' AND `bid`='{$bid}'";
+				// echo $qu;
+				$res = $conn->query($qu);
+			if($res){
+				$response['internal_message'] .= "User Permission Inserted, ";
+			}	else{
+				$response['internal_message'] .= "User Permission  Not Inserted, ";
+			}
+			}
+			else{
+				$insertBodyUserPermission .= (strlen($insertBodyUserPermission) > 0 ? ", ": ""). "('{$user_id}','{$cm_id}','{$permission_value}','{$bid}')";
+				$insertBodyUserPermission = "INSERT INTO `user_permission` (`user_id`, `cm_id`, `permission`, `bid`) VALUES " . $insertBodyUserPermission;
+				$res = $conn->query($insertBodyUserPermission);
+				if ($res){
+					$response['internal_message'] .= "User Permission Inserted, ";
+				}else{
+					$response['internal_message'] .= "User Permission  Not Inserted, ";
+				}
+	
+		}
+			$conn->close();
+			return true;
+			// echo $select; exit;
+		}
+		public function update_user_report_permission($request){
+			$conn = $this->connect('pf_central');
+
+			//Get user details (Contact_id)
+			$user = $conn->query("SELECT `id`, `client_id`, `contact_id` FROM `user` WHERE `id` = '{$request['user_id']}'")->fetch_assoc();
+
+			if ($conn->query("SELECT * FROM user_report_permission WHERE user_id = '{$request['user_id']}' AND bid = '{$request['bid']}' ")->num_rows) {
+				if(!empty($request)){
+
+					return $this->update_user_report_permission_rewritten($request);
+
+					// $updated = 0;
+	
+					// foreach ($request['u'] as $key => $obj) {
+	
+					// 	if($conn->query("UPDATE user_report_permission SET permission = '{$obj['permission']}' WHERE user_id = '{$request['user_id']}' AND report_id IN ({$obj['id']}) AND bid = '{$request['bid']}' "))
+					// 		$updated ++;
+					// }
+	
+					// if($updated == count($request['u']))
+					// 	$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>'User Report permissions updated'];
+	
+					// else
+					// 	$response = ['data'=>[],'error'=>1,'error_msg'=>'something went wrong','message'=>'please try after some time'];
+
+					$conn->close();
+				}
+				else
+					$response = ['data'=>[],'error'=>1,'error_msg'=>'insufficient data','message'=>''];
+			}
+			else 
+			{
+				//Inserting user report permissions
+				for ($i = 0; $i < sizeof($request['u']); $i++) {
+					$permission = $request['u'][$i];
+					for ($j = 0; $j < sizeof($request['bids']); $j++) {
+						$bid = $request['bids'][$j];
+						
+
+						$insertBodyUserPermission .= (strlen($insertBodyUserPermission) > 0 ? ", ": ""). "('{$user['id']}','{$permission['id']}','{$permission['permission']}','{$bid}')";
+						// if($permission['permission']!=0){
+						// 	$insertBodyUserPermission .= (strlen($insertBodyUserPermission) > 0 ? ", ": ""). "('{$user['id']}','{$permission['id']}','{$permission['permission']}','{$bid}')";
+						// }
+						
+					}
+				}
+				if (strlen($insertBodyUserPermission) > 0) {
+
+					$insertBodyUserPermission = "INSERT INTO `user_report_permission` (`user_id`, `report_id`, `permission`, `bid`) VALUES " . $insertBodyUserPermission;
+					$res = $conn->query($insertBodyUserPermission);
+
+					if ($res){
+						$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>'User Report permissions Inserted'];
+					}
+					else
+						$response = ['data'=>[],'error'=>1,'error_msg'=>'something went wrong','message'=>'please try after some time'];
+				}
+			}
+			return json_encode($response);
+		}
+
+		public function update_user_report_permission_rewritten($request) {
+			if(!empty($request)){
+				$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>'Inserted' , 'internal_message' => ''];
+				$conn = $this->connect('pf_central');
+
+				//Get user details (Contact_id)
+				$user = $conn->query("SELECT `id`, `client_id`, `contact_id` FROM `user` WHERE `id` = '{$request['user_id']}'")->fetch_assoc();
+
+				//Delete user_report_permission
+				$deleteBody = "DELETE FROM `user_report_permission` WHERE `user_id` = '{$user['id']}' AND bid NOT IN ('86')";
+				$res = $conn->query($deleteBody);
+				if ($res) {
+					$response['internal_message'] .= "User Permission Deleted, ";
+				}
+
+				//Inserting user report permissions
+				for ($i = 0; $i < sizeof($request['u']); $i++) {
+					$permission = $request['u'][$i];
+					for ($j = 0; $j < sizeof($request['bids']); $j++) {
+						$bid = $request['bids'][$j];
+						
+						// $insertBodyUserPermission .= (strlen($insertBodyUserPermission) > 0 ? ", ": ""). "('{$user['id']}','{$permission['id']}','{$permission['permission']}','{$bid}')";
+
+						if($permission['permission']!=0){
+							$insertBodyUserPermission .= (strlen($insertBodyUserPermission) > 0 ? ", ": ""). "('{$user['id']}','{$permission['id']}','{$permission['permission']}','{$bid}')";
+						}
+					}
+				}
+				if (strlen($insertBodyUserPermission) > 0) {
+
+					$insertBodyUserPermission = "INSERT INTO `user_report_permission` (`user_id`, `report_id`, `permission`, `bid`) VALUES " . $insertBodyUserPermission;
+					$res = $conn->query($insertBodyUserPermission);
+
+					if ($res){
+						$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>'User Report permissions Inserted'];
+					}
+					else
+						$response = ['data'=>[],'error'=>1,'error_msg'=>'something went wrong','message'=>'please try after some time'];
+				}
+			}
+			else{
+				$response = ['data'=>[],'error'=>1,'error_msg'=>'insufficient data','message'=>''];
+
+			}
+			return json_encode($response);
+		}
+
+		public function select_user_permission($request){
+			if(!empty($request)){
+				$conn = $this->connect('pf_central');
+				if($conn->query("SELECT id FROM user WHERE id = '{$request['user_id']}' AND client_id = '{$request['client_id']}' AND park = '0' AND inactive = '0' ")->num_rows) {
+
+					$result = $conn->query("SELECT `up`.`permission`,`cd`.`module_id`,`cd`.`module`, `up`.`bid` FROM user_permission AS up INNER JOIN client_module AS cd ON `cd`.`id` = `up`.`cm_id` INNER JOIN module AS m ON `m`.`id` = `cd`.`module_id` WHERE `m`.`parent_id` = '0' AND `up`.`user_id` = '{$request['user_id']}' AND `cd`.`client_id` = '{$request['client_id']}' AND `up`.`bid` = ".get_bid()." AND `cd`.`active` = 1 order by `cd`.`module` asc" );
+					
+					$module = $conn->query("SELECT * FROM `client_module` WHERE `client_id` = {$request['client_id']} AND `active` = 1 ORDER BY `id` ASC");
+
+					$user = $conn->query("SELECT CONCAT(fname,' ',lname) as fullname, contact_id FROM user WHERE id = '{$request['user_id']}'")->fetch_assoc();
+
+					$bid_sql = $conn->query("SELECT `bid` FROM `user_bid` WHERE `user_id` = '{$request['user_id']}' AND bid NOT IN ('86')");
+					
+					if($result->num_rows){
+						$permissions =array();
+						$bids = array();
+						while ($row = $result->fetch_assoc()){
+							array_push($permissions,$row);
+						}
+						while ($bid = $bid_sql->fetch_assoc()) {
+							array_push($bids, $bid['bid']);
+						}
+						while ($module_permission = $module->fetch_assoc())
+						array_push($user_module_permission, $module_permission);
+						$response['data'] = ['contact_id'=>$user['contact_id'],'name'=>$user['fullname'],'permissions'=>$permissions,'module_permission' => $user_module_permission, 'bids'=>$bids];
+						$response['error'] = 0;
+						$response['error_msg'] = '';
+						$response['message'] = '';
+					}
+					else{
+						$response['data'] = array();
+						$response['error'] = 1;
+						$response['error_msg'] = 'record not found';
+						$response['message'] = 'Not found';
+					}
+				}
+				else
+					$response = ['data'=>[],'error'=>1 , 'error_msg'=>'not found', 'message'=>'User is either disabled or deleted'];
+				$conn->close();
+			}
+			else
+				$response = ['data'=>[],'error'=>1,'error_msg'=>'insufficient data','message'=>''];
+
+			return json_encode($response);
+		}
+
+		public function select_user_module_permission($request){
+			if(!empty($request)){
+				$conn = $this->connect('pf_central');
+				if($conn->query("SELECT id FROM user WHERE id = '{$request['user_id']}' AND client_id = '{$request['client_id']}' AND park = '0' AND inactive = '0' ")->num_rows) {
+					$result = $conn->query("SELECT * FROM `client_module` WHERE `client_id` = {$request['client_id']} AND `active` = 1 ORDER BY `id` ASC");
+
+					$user = $conn->query("SELECT CONCAT(fname,' ',lname) as fullname, contact_id FROM user WHERE id = '{$request['user_id']}'")->fetch_assoc();
+					$bid_sql = $conn->query("SELECT `bid` FROM `user_bid` WHERE `user_id` = '{$request['user_id']}'");
+
+					$module = $conn->query("SELECT u.*,c.client_id,c.module_id,c.module FROM `user_permission` u LEFT JOIN `client_module` c ON c.id = u.cm_id WHERE u.bid = '{$request['b_id']}' AND u.user_id = '{$request['user_id']}' AND c.client_id = '{$request['client_id']}' AND c.active = '1' ORDER BY c.module ASC");
+
+					$permissions =array();
+					$bids = array();
+					$user_module_permission = array();
+					while ($row = $result->fetch_assoc())
+						array_push($permissions,$row);
+					while ($bid = $bid_sql->fetch_assoc()) 
+						array_push($bids, $bid['bid']);
+					while ($module_permission = $module->fetch_assoc())
+						array_push($user_module_permission, $module_permission);
+					$response['data'] = ['contact_id'=>$user['contact_id'],'name'=>$user['fullname'],'permissions'=>$permissions,'bids'=>$bids,'module_permission' => $user_module_permission];
+					$response['error'] = 0;
+					$response['error_msg'] = '';
+					$response['message'] = '';
+				}
+				else
+					$response = ['data'=>[],'error'=>1 , 'error_msg'=>'not found', 'message'=>'User is either disabled or deleted'];
+				$conn->close();
+			}
+			else
+				$response = ['data'=>[],'error'=>1,'error_msg'=>'insufficient data','message'=>''];
+
+			return json_encode($response);
+		}
+
+		public function select_user_report_permission($request){
+			if(!empty($request)){
+				$conn = $this->connect('pf_central');
+				$connTr = $this->connect('pf_TickleRight_9210');
+				if($conn->query("SELECT id FROM user WHERE id = '{$request['user_id']}' AND client_id = '{$request['client_id']}' AND park = '0' AND inactive = '0' ")->num_rows) {
+					
+					$result2 = $conn->query("SELECT GROUP_CONCAT(id) as ids FROM `module` WHERE `parent_id` != 0 AND `parent_id` IN ({$request['module_id']}) AND `park` = 0 ;");
+
+					if($result2->num_rows){
+						$data = $result2->fetch_assoc();
+					}
+
+					$permissionCheck = $conn->query("SELECT id FROM `user_report_permission` WHERE `user_id` = {$request['user_id']};");
+					if($permissionCheck->num_rows){
+						if(isset($data['ids']))
+						{
+							$result = $connTr->query("SELECT urp.permission, r.id, r.module_id, r.name, r.title FROM pf_central.user_report_permission urp RIGHT JOIN report r on ( urp.report_id = r.id ) WHERE r.report = 1 AND urp.user_id = {$request['user_id']} AND r.module_id IN({$request['module_id']},{$data['ids']}) GROUP BY r.id;");
+
+							$resultReport = $connTr->query("SELECT id, module_id, name, title FROM report WHERE report = 1 AND module_id IN ({$request['module_id']},{$data['ids']})");
+							// print_r("SELECT urp.permission, r.id, r.module_id, r.name, r.title FROM pf_central.user_report_permission urp RIGHT JOIN report r on ( urp.report_id = r.id ) WHERE r.report = 1 AND urp.user_id = {$request['user_id']} AND r.module_id IN({$request[module_id]},{$data['ids']}) GROUP BY r.id;");
+							// exit;
+							// AND urp.user_id = {$request['user_id']} 
+						}	
+						else{
+							$result = $connTr->query("SELECT urp.permission, r.id, r.module_id, r.name, r.title FROM pf_central.user_report_permission urp RIGHT JOIN report r on ( urp.report_id = r.id ) WHERE r.report = 1 AND urp.user_id = {$request['user_id']} AND r.module_id IN({$request['module_id']}) GROUP BY r.id;");
+
+							$resultReport = $connTr->query("SELECT id, module_id, name, title FROM report WHERE report = 1 AND module_id IN ({$request['module_id']})");
+							// print_r("SELECT urp.permission, r.id, r.module_id, r.name, r.title FROM pf_central.user_report_permission urp RIGHT JOIN report r on ( urp.report_id = r.id ) WHERE r.report = 1 AND urp.user_id = {$request['user_id']}  AND r.module_id IN({$request[module_id]}) GROUP BY r.id;");
+							// exit;
+
+							// AND urp.user_id = {$request['user_id']} 
+						}
+					}
+					else{
+						if(isset($data['ids'])){
+							$result = $connTr->query("SELECT id, module_id, name, title FROM report WHERE report = 1 AND module_id IN ({$request['module_id']},{$data['ids']})");
+						}
+							
+
+						else{
+							$result = $connTr->query("SELECT id, module_id, name, title FROM report WHERE report = 1 AND module_id IN ({$request['module_id']})");
+						}
+					}
+					
+					$user = $conn->query("SELECT CONCAT(fname,' ',lname) as fullname, contact_id FROM user WHERE id = '{$request['user_id']}'")->fetch_assoc();
+
+					$bid_sql = $conn->query("SELECT `bid` FROM `user_bid` WHERE `user_id` = '{$request['user_id']}' AND bid NOT IN ('86')");
+		
+					
+					if($result->num_rows){
+						$reportData=array();
+						$permissions =array(); 
+						$bids = array();
+						$check=0;
+						while ($row = $result->fetch_assoc()){
+							array_push($permissions,$row);
+						}
+						if($resultReport->num_rows){
+							while ($rowData = $resultReport->fetch_assoc()){
+								array_push($reportData,$rowData);
+								
+							}
+							
+							for($i=0;$i<$resultReport->num_rows;$i++){
+								$check=0;
+								for($j=0;$j<$result->num_rows;$j++){
+							
+									if($reportData[$i]['id'] == $permissions[$j]['id']){
+										$reportData[$i]['permission']='1';
+										break;
+									}
+									else{
+										$check++;
+									}
+									if($check == $result->num_rows){
+										$reportData[$i]['permission']='0';
+										break;
+									}
+								}
+							}
+						}
+						
+						while ($bid = $bid_sql->fetch_assoc()) {
+							array_push($bids, $bid['bid']);
+						}
+
+						if(!empty($reportData)){
+							$response['data'] = ['contact_id'=>$user['contact_id'],'name'=>$user['fullname'],'permissions'=>$reportData,'bids'=>$bids];
+							$response['error'] = 0;
+							$response['error_msg'] = '';
+							$response['message'] = '';
+						}else{
+							$response['data'] = ['contact_id'=>$user['contact_id'],'name'=>$user['fullname'],'permissions'=>$permissions, 'bids'=>$bids];
+							$response['error'] = 0;
+							$response['error_msg'] = '';
+							$response['message'] = '';
+						}
+						
+					}
+					else{
+						$response['data'] = array();
+						$response['error'] = 1;
+						$response['error_msg'] = 'record not found';
+						$response['message'] = 'Not found';
+					}
+				}
+				else
+					$response = ['data'=>[],'error'=>1 , 'error_msg'=>'not found', 'message'=>'User is either disabled or deleted'];
+				$conn->close();
+			}
+			else
+				$response = ['data'=>[],'error'=>1,'error_msg'=>'insufficient data','message'=>''];
+
+			return json_encode($response);
+		}
+ 
+		public function update_fcm_token($request){
+			if(!empty($request)){
+				$conn = $this->connect('pf_central');
+
+				$updated = $conn->query("UPDATE user_device SET fcm_token = '{$request['fcm_token']}' WHERE user_id = '".get_uid()."' AND access_token = '".get_token()."'");
+				if($updated){
+					$response['data'] = [];
+					$response['error'] = 0;
+					$response['error_msg'] = '';
+					$response['message'] = '';
+				}
+				else{
+					$response['data'] = [];
+					$response['error'] = 1;
+					$response['error_msg'] = '';
+					$response['message'] = '';
+				}
+				$conn->close();
+			}
+			else
+				$response = ['data'=>[],'error'=>1,'error_msg'=>'insufficient data','message'=>''];
+
+			
+			return json_encode($response);
+		}
+
+		public function logout_user($request){
+			if(get_token() && get_uid()){
+				$conn = $this->connect('pf_central');
+				$updated = $conn->query("UPDATE user_device SET logout = '1', fcm_token='' WHERE user_id = '".get_uid()."' AND access_token = '".get_token()."'");
+				if($updated)
+					$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>''];
+				else
+					$response = ['data'=>[],'error'=>1,'error_msg'=>'something went wrong','message'=>''];
+				$conn->close();
+			}
+			else
+				$response = ['data'=>[],'error'=>1,'error_msg'=>'bad request','message'=>''];
+
+			return json_encode($response);
+		}
+
+		public function change_password($request){
+			$conn = $this->connect("pf_central");
+			$user = $conn->query("SELECT id FROM user WHERE `contact_id` = '{$request['contact_id']}' AND `client_id` = '{$request['client_id']}' AND (`mpin` = '{$request['current']}' OR `password` = '{$request['current']}') ");
+			if($user->num_rows || $request['firstLogin']){
+				$update_pass = $conn->query("UPDATE user SET password = '{$request['new']}' WHERE contact_id = '{$request['contact_id']}' AND `client_id` = '{$request['client_id']}'");
+				if($update_pass) {
+					if ($request['firstLogin']) {
+						// $this->sendMsgMail($conn);
+						$uid = get_uid();
+						$conn->query("UPDATE `client_progress` SET `complete` = 1 WHERE `client_id` = '{$request['client_id']}' AND `user_id` = '{$uid}' AND `progress_id` = '2'");
+					}
+					$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>'Password has set'];
+				}
+				else
+					$response = ['data'=>[],'error'=>1,'error_msg'=>'','message'=>'Something went wrong'];
+			}
+			else{
+				$response['data'] = array();
+				$response['error'] = 1;
+				$response['error_msg'] = 'record not found';
+				$response['message'] = 'Not found';
+			}
+
+			$conn->close();
+			return json_encode($response);
+		}
+
+		public function change_mpin($request){
+			$conn = $this->connect("pf_central");
+			$user = $conn->query("SELECT id FROM user WHERE `contact_id` = '{$request['contact_id']}' AND `client_id` = '{$request['client_id']}' AND (`mpin` = '{$request['current']}' OR `password` = '{$request['current']}') ");
+			if($user->num_rows || $request['firstLogin']){
+				$update_mpin = $conn->query("UPDATE user SET mpin = '{$request['new']}' WHERE contact_id = '{$request['contact_id']}' AND `client_id` = '{$request['client_id']}'");
+
+				if($update_mpin) {
+					if ($request['firstLogin']) {
+						$this->sendMsgMail($conn, $request);
+						$uid = get_uid();
+						$conn->query("UPDATE `client_progress` SET `complete` = 1 WHERE `client_id` = '{$request['client_id']}' AND `user_id` = '{$uid}' AND `progress_id` = '2'");
+					}
+					$response = ['data'=>[],'error'=>0,'error_msg'=>'','message'=>'Mpin has set'];
+				}
+				else
+					$response = ['data'=>[],'error'=>1,'error_msg'=>'','message'=>'Something went wrong'];
+			}
+			else{
+				$response['data'] = array();
+				$response['error'] = 1;
+				$response['error_msg'] = 'record not found';
+				$response['message'] = 'Not found';
+			}
+
+			$conn->close();
+			return json_encode($response);
+		}
+
+		private function sendMsgMail($conn, $request) {
+			$pass = $request['new'];
+			global $mpinSetEmail;
+
+			$user = $conn->query("SELECT `u`.`mobile`,`u`.`fname`,`u`.`lname`,`us`.`email`,`us`.`gender`,`us`.`image_url` FROM user AS `u` INNER JOIN user_social AS `us` ON `u`.`id` = `us`.`user_id` WHERE  `u`.`contact_id` = '{$request['contact_id']}' AND `u`.`client_id` = '{$request['client_id']}'")->fetch_assoc();
+			$mpinSetEmail = str_replace("#PASSWORD", $pass, $mpinSetEmail);
+			$recipients = array();
+			array_push($recipients, $user['email']);
+			$from = "noreply@papa.fit";
+			$from_name = "Papa Fit";
+			$subject = "Your MPIN has been set.";
+			$bodyToUsers = $mpinSetEmail;
+			$bodyToAdmin = "";
+			$username = "meetpapafit@gmail.com";
+			$password = "P@sSw0paparD";
+			$mail = new mailer;
+			$res = $mail->sendMail($recipients,"","",$from,$from_name,$subject,$bodyToUsers,$username,$password);
+
+			//Send msg
+			$recipients = array();
+			array_push($recipients, $user['mobile']);
+			$sms = new smsgateway;
+			$smsBody = "Your MPIN / Password has been set at Papa Fit, check your mailbox and proceed for training at https://goo.gl/CcQVqx";
+			$sms->sendSms("PAPAFT",$recipients,$smsBody);
+
+		}
+
+		public function updateClientProgress($request) {
+			$conn = $this->connect('pf_central');
+			$response = [];
+			$user_query = $conn->query("SELECT `id`, `client_id` FROM `user` WHERE `id` = '".get_uid()."' AND `admin` = '1'");
+			if ($user_query->num_rows) {
+				$user = $user_query->fetch_assoc();
+				//Update client_progress
+				$result = $this->conn->query("UPDATE `client_progress` SET `complete` = '{$request['complete']}' WHERE `user_id` = '{$user['id']}' AND `client_id` = '{$user['client_id']}' AND `progress_id` = '{$request['progress_id']}' AND `complete` = '0'");
+
+				if ($result) {
+					//Schedule sms and email
+					//Brilliant, you have progressed very well. You are now certified to explore Papa Fit and improve your business administration.
+				}
+
+				$response['data'] = [];
+				$response['error'] = 0;
+				$response['error_msg'] = '';
+				$response['message'] = '';
+			} else {
+				$response['data'] = [];
+				$response['error'] = 0;
+				$response['error_msg'] = '';
+				$response['message'] = '';
+			}
+			return json_encode($response);
+		}
+
+		public function setFirstLogin($request) {
+			$conn = $this->connect('pf_central');
+			$response = [];
+			$result = $conn->query("UPDATE `user` SET `is_first_login` = '0' WHERE `id` = '{$request['user_id']}'");
+			if ($result) {
+				$response['data'] = [];
+				$response['error'] = 0;
+				$response['error_msg'] = '';
+				$response['message'] = 's';
+			} else {
+				$response['data'] = [];
+				$response['error'] = 1;
+				$response['error_msg'] = 'Unable to set First login';
+				$response['message'] = 'Unable to set First Login';
+			}
+
+			$conn->close();
+			return json_encode($response);
+		}
+
+	}
+
+
+?>
